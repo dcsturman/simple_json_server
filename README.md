@@ -59,10 +59,7 @@ The `#[actor]` procedural macro automatically implements the `Actor` trait for y
 
 1. **Analyzing public async methods** in the impl block
 2. **Generating message structs** for each method's parameters
-3. **Creating a dispatch method** that handles JSON messages in the format:
-   ```json
-   {"method": "method_name", "params": {"param1": "value1", "param2": "value2"}}
-   ```
+3. **Creating a dispatch method** that handles JSON messages mapped from the method parameters.
 
 ### Features
 
@@ -196,9 +193,10 @@ The `TlsConfig` struct supports:
 
 ## Examples
 
-See the `examples/` directory for more comprehensive examples:
+There are examples in the `simple_json_server` crate itself.  See the `examples/` directory for a more complete (yet simple) demo.  The demo will build on its own.
 
 ```bash
+cd simple_json_server/examples 
 # Basic calculator example
 cargo run --example calculator
 
@@ -207,6 +205,10 @@ cargo run --example server
 
 # TLS/SSL server example (HTTPS and WSS)
 cargo run --example tls_server
+
+# The full example
+cd ../../examples/demo
+cargo run
 ```
 
 ## Actor Trait
@@ -245,3 +247,4 @@ The generated documentation includes:
 - **Parameter specifications** with type information
 
 This makes it easy to understand the JSON API without looking at the source code!
+
