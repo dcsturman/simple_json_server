@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "actor_attribute_macro",
     "simple_json_server",
