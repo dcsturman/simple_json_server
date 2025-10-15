@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemImpl, ImplItem, ImplItemFn, FnArg, Pat, Type, Visibility};
+use syn::{FnArg, ImplItem, ImplItemFn, ItemImpl, Pat, Type, Visibility, parse_macro_input};
 
 /// The `#[actor]` attribute macro that implements the Actor trait for a struct.
 ///
@@ -12,38 +12,6 @@ use syn::{parse_macro_input, ItemImpl, ImplItem, ImplItemFn, FnArg, Pat, Type, V
 ///    - Matches method names from the JSON
 ///    - Calls the appropriate method with deserialized parameters
 ///    - Serializes and returns the result
-///
-/// # Example
-/// ```rust
-/// struct MyActor {
-///     state: i32,
-/// }
-///
-/// #[actor]
-/// impl MyActor {
-///     pub async fn add(&self, a: i32, b: i32) -> i32 {
-///         a + b
-///     }
-///
-///     pub async fn get_state(&self) -> i32 {
-///         self.state
-///     }
-/// }
-/// ```
-///
-/// This will generate message structs like:
-/// ```rust
-/// #[derive(serde::Deserialize)]
-/// struct AddMessage {
-///     a: i32,
-///     b: i32,
-/// }
-/// ```
-///
-/// And implement Actor::dispatch to handle JSON like:
-/// ```json
-/// {"method": "add", "params": {"a": 5, "b": 3}}
-/// ```
 #[proc_macro_attribute]
 pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input_impl = parse_macro_input!(input as ItemImpl);
@@ -57,49 +25,53 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     let mut dispatch_arms = Vec::new();
 
     for item in &input_impl.items {
-        if let ImplItem::Fn(method) = item {
-            if is_public_async_method(method) {
-                let method_name = &method.sig.ident;
-                let method_name_str = method_name.to_string();
+        if let ImplItem::Fn(method) = item
+            && is_public_async_method(method)
+        {
+            let method_name = &method.sig.ident;
+            let method_name_str = method_name.to_string();
 
-                // Extract parameters (excluding &self)
-                let params = extract_method_params(method);
+            // Extract parameters (excluding &self)
+            let params = extract_method_params(method);
 
-                // Generate message struct name
-                let message_struct_name = syn::Ident::new(
-                    &format!("{}Message", snake_case_to_pascal_case(&method_name_str)),
-                    method_name.span()
-                );
+            // Generate message struct name
+            let message_struct_name = syn::Ident::new(
+                &format!("{}Message", snake_case_to_pascal_case(&method_name_str)),
+                method_name.span(),
+            );
 
-                // Generate message struct
-                if !params.is_empty() {
-                    let param_fields: Vec<_> = params.iter().map(|(name, ty)| {
+            // Generate message struct
+            if !params.is_empty() {
+                let param_fields: Vec<_> = params
+                    .iter()
+                    .map(|(name, ty)| {
                         quote! { #name: #ty }
-                    }).collect();
+                    })
+                    .collect();
 
-                    message_structs.push(quote! {
-                        #[derive(serde::Deserialize)]
-                        struct #message_struct_name {
-                            #(#param_fields),*
-                        }
-                    });
-                } else {
-                    // For methods with no parameters, create an empty struct
-                    message_structs.push(quote! {
-                        #[derive(serde::Deserialize)]
-                        struct #message_struct_name {}
-                    });
-                }
+                message_structs.push(quote! {
+                    #[derive(serde::Deserialize)]
+                    struct #message_struct_name {
+                        #(#param_fields),*
+                    }
+                });
+            } else {
+                // For methods with no parameters, create an empty struct
+                message_structs.push(quote! {
+                    #[derive(serde::Deserialize)]
+                    struct #message_struct_name {}
+                });
+            }
 
-                // Generate dispatch arm
-                let param_names: Vec<_> = params.iter().map(|(name, _)| name).collect();
-                let method_call = if params.is_empty() {
-                    quote! { self.#method_name().await }
-                } else {
-                    quote! { self.#method_name(#(msg_params.#param_names),*).await }
-                };
+            // Generate dispatch arm
+            let param_names: Vec<_> = params.iter().map(|(name, _)| name).collect();
+            let method_call = if params.is_empty() {
+                quote! { self.#method_name().await }
+            } else {
+                quote! { self.#method_name(#(msg_params.#param_names),*).await }
+            };
 
-                dispatch_arms.push(quote! {
+            dispatch_arms.push(quote! {
                     #method_name_str => {
                         let msg_params: #message_struct_name = serde_json::from_value(params)
                             .map_err(|e| format!("Failed to deserialize parameters for {}: {}", #method_name_str, e))?;
@@ -109,8 +81,7 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 });
 
-                methods.push(method);
-            }
+            methods.push(method);
         }
     }
 
@@ -207,8 +178,13 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
     let mut doc = String::new();
 
     // Header
-    doc.push_str(&format!("Actor implementation for `{}`.\n\n", quote!(#struct_type)));
-    doc.push_str("This implementation provides JSON-based method dispatch for the following methods:\n\n");
+    doc.push_str(&format!(
+        "Actor implementation for `{}`.\n\n",
+        quote!(#struct_type)
+    ));
+    doc.push_str(
+        "This implementation provides JSON-based method dispatch for the following methods:\n\n",
+    );
 
     // Method overview table
     doc.push_str("| Method | Parameters | Return Type |\n");
@@ -222,7 +198,8 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
         let param_str = if params.is_empty() {
             "None".to_string()
         } else {
-            params.iter()
+            params
+                .iter()
                 .map(|(name, ty)| format!("`{}`: `{}`", name, quote!(#ty)))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -233,7 +210,10 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
             syn::ReturnType::Type(_, ty) => format!("`{}`", quote!(#ty)),
         };
 
-        doc.push_str(&format!("| `{}` | {} | {} |\n", method_name, param_str, return_str));
+        doc.push_str(&format!(
+            "| `{}` | {} | {} |\n",
+            method_name, param_str, return_str
+        ));
     }
 
     // Detailed method documentation
@@ -259,7 +239,7 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
             for (name, ty) in &params {
                 doc.push_str(&format!("  - `{}`: `{}`\n", name, quote!(#ty)));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
 
         // Return type
@@ -289,9 +269,15 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
         doc.push_str("**Usage Example from Javascript:**\n");
         doc.push_str("```js\n");
         if params.is_empty() {
-            doc.push_str(&format!("result = await fetch(\"http://localhost:9000/{}\");\n", method_name_str));
+            doc.push_str(&format!(
+                "result = await fetch(\"http://localhost:9000/{}\");\n",
+                method_name_str
+            ));
         } else {
-            doc.push_str(&format!("result = await fetch(\"http://localhost:9000/{}\", {{ body: JSON.stringify(", method_name_str));
+            doc.push_str(&format!(
+                "result = await fetch(\"http://localhost:9000/{}\", {{ body: JSON.stringify(",
+                method_name_str
+            ));
             if params.len() == 1 {
                 let (name, ty) = &params[0];
                 let example_value = generate_example_value(ty);
@@ -303,7 +289,7 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
                     let comma = if i == params.len() - 1 { "" } else { "," };
                     doc.push_str(&format!("  {}: {}{}\n", name, example_value, comma));
                 }
-                doc.push_str("}");
+                doc.push('}');
             }
             doc.push_str(")});\n");
         }
@@ -318,19 +304,21 @@ fn extract_method_doc(method: &ImplItemFn) -> Option<String> {
     let mut doc_lines = Vec::new();
 
     for attr in &method.attrs {
-        if attr.path().is_ident("doc") {
-            if let syn::Meta::NameValue(meta) = &attr.meta {
-                if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit_str), .. }) = &meta.value {
-                    let doc_text = lit_str.value();
-                    // Remove leading space that rustdoc adds
-                    let trimmed = if doc_text.starts_with(' ') {
-                        &doc_text[1..]
-                    } else {
-                        &doc_text
-                    };
-                    doc_lines.push(trimmed.to_string());
-                }
-            }
+        if attr.path().is_ident("doc")
+            && let syn::Meta::NameValue(meta) = &attr.meta
+            && let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Str(lit_str),
+                ..
+            }) = &meta.value
+        {
+            let doc_text = lit_str.value();
+            // Remove leading space that rustdoc adds
+            let trimmed = if let Some(stripped) = doc_text.strip_prefix(' ') {
+                stripped
+            } else {
+                &doc_text
+            };
+            doc_lines.push(trimmed.to_string());
         }
     }
 

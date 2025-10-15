@@ -21,19 +21,19 @@ impl ServerCalculator {
         println!("[{}] Adding {} + {}", self.name, a, b);
         a + b
     }
-    
+
     /// Subtract two numbers
     pub async fn subtract(&self, a: f64, b: f64) -> f64 {
         println!("[{}] Subtracting {} - {}", self.name, a, b);
         a - b
     }
-    
+
     /// Multiply two numbers
     pub async fn multiply(&self, a: f64, b: f64) -> f64 {
         println!("[{}] Multiplying {} * {}", self.name, a, b);
         a * b
     }
-    
+
     /// Divide two numbers
     pub async fn divide(&self, a: f64, b: f64) -> Result<f64, String> {
         println!("[{}] Dividing {} / {}", self.name, a, b);
@@ -43,12 +43,12 @@ impl ServerCalculator {
             Ok(a / b)
         }
     }
-    
+
     /// Get server info
     pub async fn info(&self) -> String {
         format!("Calculator Server: {}", self.name)
     }
-    
+
     /// Health check endpoint
     pub async fn health(&self) -> String {
         "OK".to_string()
@@ -69,7 +69,7 @@ fn main() {
     // Start WebSocket server on port 8081 (consumes ws_calc)
     println!("Starting WebSocket server on port 8081...");
     ws_calc.create_options(8081, true);
-    
+
     println!("Servers started!");
     println!();
     println!("HTTP Server Examples:");
@@ -83,7 +83,7 @@ fn main() {
     println!("  Send: {{\"method\": \"info\", \"params\": {{}}}}");
     println!();
     println!("Press Ctrl+C to stop the servers");
-    
+
     // Keep the main thread alive
     loop {
         thread::sleep(Duration::from_secs(1));

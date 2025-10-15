@@ -15,7 +15,7 @@
 //!
 //! 3. The `create` method will start a server for you and begin listening for incoming JSON-RPC calls via HTTP. `create_ws` will do the same but via WebSocket.
 //!
-//! Note that the `create` and `create_ws` methods consume the actor.  
+//! Note that the `create` and `create_ws` methods consume the actor.
 //! Here is an example with a simple "greet" method:
 //! ```rust
 //! use simple_json_server::{Actor, actor};
@@ -27,7 +27,7 @@
 //!         format!("Hello, {}!", name)
 //!     }
 //! }
-//! 
+//!
 //! fn main() {
 //!     GreetActor.create(8080);
 //! }
@@ -50,7 +50,7 @@
 //! - Rust itself isn't functional in the same way as Lisp. So we eschew `become` as a keyword and generally find completely changing behavior is superfluous for general work.
 //! - Each actor is single threaded; we take this approach instead of using an atomic `become` to manage state changes.
 //! - Addresses are well known. This is critical to support cross language invocation (the classic client/server case) and contrasts from the Actor model where addresses are passed around.
-//! - RPC and return values are supported. Again, this is important to simplify cross language invocation and generally simplifies all distributed code at the cost of asynchronous execution and parallelism. 
+//! - RPC and return values are supported. Again, this is important to simplify cross language invocation and generally simplifies all distributed code at the cost of asynchronous execution and parallelism.
 //!   In the future we'll look to optimize cases that don't need return values by not waiting for method completion.
 //!
 //! ## Examples
@@ -73,12 +73,10 @@
 //! ```
 //!
 
+#![allow(clippy::needless_doctest_main)]
+
 // Re-export the actor macro
 pub use actor_attribute_macro::actor;
-
-
-
-
 
 /// TLS configuration for secure connections
 #[derive(Debug, Clone)]
@@ -99,7 +97,9 @@ impl TlsConfig {
     }
 
     /// Load the TLS configuration and create a rustls ServerConfig
-    pub(crate) async fn load_server_config(&self) -> Result<rustls::ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
+    pub(crate) async fn load_server_config(
+        &self,
+    ) -> Result<rustls::ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
         use rustls_pemfile::{certs, pkcs8_private_keys};
         use std::io::BufReader;
         use tokio::fs::File;
@@ -214,7 +214,6 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-
 
 // Implement Actor for Arc<T> where T: Actor
 impl<T: Actor + Send + Sync + 'static> Actor for Arc<T> {
@@ -429,7 +428,8 @@ where
                         tokio::spawn(async move {
                             match tls_acceptor.accept(stream).await {
                                 Ok(tls_stream) => {
-                                    if let Err(e) = handle_https_connection(actor, tls_stream).await {
+                                    if let Err(e) = handle_https_connection(actor, tls_stream).await
+                                    {
                                         eprintln!("HTTPS connection error: {}", e);
                                     }
                                 }
@@ -476,7 +476,9 @@ where
                         tokio::spawn(async move {
                             match tls_acceptor.accept(stream).await {
                                 Ok(tls_stream) => {
-                                    if let Err(e) = handle_websocket_connection_tls(actor, tls_stream).await {
+                                    if let Err(e) =
+                                        handle_websocket_connection_tls(actor, tls_stream).await
+                                    {
                                         eprintln!("WSS connection error: {}", e);
                                     }
                                 }
@@ -541,7 +543,8 @@ where
                     Err(e) => {
                         let error_response = serde_json::json!({
                             "error": format!("JSON parse error: {}", e)
-                        }).to_string();
+                        })
+                        .to_string();
 
                         if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
                             eprintln!("Failed to send WebSocket error response: {}", e);
