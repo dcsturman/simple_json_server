@@ -30,10 +30,6 @@ name = "server"
 path = "examples/server.rs"
 
 [[example]]
-name = "move_demo"
-path = "examples/demo/src/main.rs"
-
-[[example]]
 name = "doc_test"
 path = "examples/doc_test.rs"
 
