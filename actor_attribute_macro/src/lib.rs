@@ -15,6 +15,7 @@ use syn::{FnArg, ImplItem, ImplItemFn, ItemImpl, Pat, Type, Visibility, parse_ma
 ///    - Calls the appropriate method with deserialized parameters
 ///    - Serializes and returns the result
 #[proc_macro_attribute]
+#[allow(clippy::collapsible_if)] // Intentionally avoiding let-chains for MSRV compatibility (Rust 1.85)
 pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input_impl = parse_macro_input!(input as ItemImpl);
 
@@ -348,6 +349,7 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
 }
 
 /// Extract documentation comments from a method
+#[allow(clippy::collapsible_if)] // Intentionally avoiding let-chains for MSRV compatibility (Rust 1.85)
 fn extract_method_doc(method: &ImplItemFn) -> Option<String> {
     let mut doc_lines = Vec::new();
 
