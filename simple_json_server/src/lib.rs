@@ -28,7 +28,8 @@
 //!     }
 //! }
 //!
-//! fn main() {
+//! #[tokio::main]
+//! async fn main() {
 //!     GreetActor.create(8080);
 //! }
 //! ```
@@ -78,249 +79,225 @@
 // Re-export the actor macro
 pub use actor_attribute_macro::actor;
 
-/// TLS configuration for secure connections
-#[derive(Debug, Clone)]
-pub struct TlsConfig {
-    /// Path to the certificate file (PEM format)
-    pub cert_path: String,
-    /// Path to the private key file (PEM format)
-    pub key_path: String,
-}
-
-impl TlsConfig {
-    /// Create a new TLS configuration
-    pub fn new(cert_path: impl Into<String>, key_path: impl Into<String>) -> Self {
-        Self {
-            cert_path: cert_path.into(),
-            key_path: key_path.into(),
-        }
-    }
-
-    /// Load the TLS configuration and create a rustls ServerConfig
-    pub(crate) async fn load_server_config(
-        &self,
-    ) -> Result<rustls::ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
-        use rustls_pemfile::{certs, pkcs8_private_keys};
-        use std::io::BufReader;
-        use tokio::fs::File;
-        use tokio::io::AsyncReadExt;
-
-        // Read certificate file
-        let mut cert_file = File::open(&self.cert_path).await?;
-        let mut cert_data = Vec::new();
-        cert_file.read_to_end(&mut cert_data).await?;
-        let mut cert_reader = BufReader::new(cert_data.as_slice());
-        let cert_chain = certs(&mut cert_reader)?
-            .into_iter()
-            .map(rustls::Certificate)
-            .collect();
-
-        // Read private key file
-        let mut key_file = File::open(&self.key_path).await?;
-        let mut key_data = Vec::new();
-        key_file.read_to_end(&mut key_data).await?;
-        let mut key_reader = BufReader::new(key_data.as_slice());
-        let mut keys = pkcs8_private_keys(&mut key_reader)?;
-
-        if keys.is_empty() {
-            return Err("No private key found".into());
-        }
-
-        let private_key = rustls::PrivateKey(keys.remove(0));
-
-        // Create server config
-        let config = rustls::ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth()
-            .with_single_cert(cert_chain, private_key)?;
-
-        Ok(config)
-    }
-}
+pub mod tls;
+pub use tls::TlsConfig;
 
 /// The Actor trait must be implemented by all servers.  Implementation is most commonly achieved by using
 /// the `#[actor]` macro with any other Rust `struct` and `impl`.
 pub trait Actor {
     /// Takes a method name and a JSON message, processes it appropriately, and returns a JSON response.
-    fn dispatch(&self, method_name: &str, msg: &str) -> String;
-
-    /// Creates a new actor by spawning a thread to listen on the specified port for incoming JSON messages and processes them using dispatch.
-    /// If websocket is true, the server will use the websocket protocol instead of HTTP.
-    /// This method consumes the actor, preventing further use after starting the server.
-    fn create_options(self, port: u16, websocket: bool)
-    where
-        Self: Send + Sync + Sized + 'static,
-    {
-        self.create_options_with_tls(port, websocket, None)
-    }
+    fn dispatch(
+        &self,
+        method_name: &str,
+        msg: &str,
+    ) -> impl std::future::Future<Output = String> + Send;
 
     /// Creates a new actor with TLS support by spawning a thread to listen on the specified port for incoming JSON messages and processes them using dispatch.
     /// If websocket is true, the server will use the websocket protocol instead of HTTP.
     /// If tls_config is provided, the server will use TLS/SSL encryption.
     /// This method consumes the actor, preventing further use after starting the server.
-    fn create_options_with_tls(self, port: u16, websocket: bool, tls_config: Option<TlsConfig>)
+    fn create_options(self, port: u16, websocket: bool, tls_config: Option<TlsConfig>)
     where
         Self: Send + Sync + Sized + 'static,
     {
         let actor = std::sync::Arc::new(self);
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                if websocket {
+        // Try to spawn on existing runtime first, fallback to new thread with runtime
+        let handle = tokio::runtime::Handle::current();
+        handle.spawn(async move {
+            match (websocket, tls_config) {
+                (true, Some(tls_config)) => {
                     start_websocket_server_with_tls(actor, port, tls_config).await;
-                } else {
+                }
+                (true, None) => {
+                    start_websocket_server(actor, port).await;
+                }
+                (false, Some(tls_config)) => {
                     start_http_server_with_tls(actor, port, tls_config).await;
                 }
-            });
+                (false, None) => {
+                    start_http_server(actor, port).await;
+                }
+            }
         });
     }
 
+    /// Creates a new actor using HTTP and without TLS. The simplest case so with the least
+    /// boilerplate.
+    ///
+    /// This method consumes the actor, preventing further use after starting the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - The port to listen on
     fn create(self, port: u16)
     where
         Self: Send + Sync + Sized + 'static,
     {
-        self.create_options(port, false);
+        self.create_options(port, false, None);
     }
 
+    /// Creates a new actor using WebSocket and without TLS.
+    ///
+    /// This method consumes the actor, preventing further use after starting the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - The port to listen on
     fn create_ws(self, port: u16)
     where
         Self: Send + Sync + Sized + 'static,
     {
-        self.create_options(port, true);
+        self.create_options(port, true, None);
     }
 
-    /// Create an HTTPS server with TLS encryption
+    /// Creates a new actor using HTTP and with TLS encryption.
+    ///
+    /// This method consumes the actor, preventing further use after starting the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - The port to listen on
+    /// * `tls_config` - The TLS configuration
     fn create_https(self, port: u16, tls_config: TlsConfig)
     where
         Self: Send + Sync + Sized + 'static,
     {
-        self.create_options_with_tls(port, false, Some(tls_config));
+        self.create_options(port, false, Some(tls_config));
     }
 
     /// Create a WSS (WebSocket Secure) server with TLS encryption
+    ///
+    /// This method consumes the actor, preventing further use after starting the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - The port to listen on
+    /// * `tls_config` - The TLS configuration
     fn create_wss(self, port: u16, tls_config: TlsConfig)
     where
         Self: Send + Sync + Sized + 'static,
     {
-        self.create_options_with_tls(port, true, Some(tls_config));
+        self.create_options(port, true, Some(tls_config));
     }
 }
 
 use futures_util::{SinkExt, StreamExt};
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Server, StatusCode};
+use http_body_util::Full;
+use hyper::body::Bytes;
+use hyper::service::service_fn;
+use hyper::{Request, Response, StatusCode};
+use hyper_util::rt::TokioIo;
+use hyper_util::server::conn::auto::Builder;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-
-// Implement Actor for Arc<T> where T: Actor
-impl<T: Actor + Send + Sync + 'static> Actor for Arc<T> {
-    fn dispatch(&self, method_name: &str, msg: &str) -> String {
-        (**self).dispatch(method_name, msg)
-    }
-
-    fn create_options(self, port: u16, websocket: bool)
-    where
-        Self: Send + Sync + Sized + 'static,
-    {
-        self.create_options_with_tls(port, websocket, None)
-    }
-
-    fn create_options_with_tls(self, port: u16, websocket: bool, tls_config: Option<TlsConfig>)
-    where
-        Self: Send + Sync + Sized + 'static,
-    {
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                if websocket {
-                    start_websocket_server_with_tls(self, port, tls_config).await;
-                } else {
-                    start_http_server_with_tls(self, port, tls_config).await;
-                }
-            });
-        });
-    }
-}
 
 /// Start an HTTP server that processes JSON messages
 async fn start_http_server<T>(actor: Arc<T>, port: u16)
 where
     T: Actor + Send + Sync + 'static,
 {
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-
-    let make_svc = make_service_fn(move |_conn| {
-        let actor = Arc::clone(&actor);
-        async move {
-            Ok::<_, Infallible>(service_fn(move |req| {
-                let actor = Arc::clone(&actor);
-                async move { handle_http_request(actor, req).await }
-            }))
-        }
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = TcpListener::bind(&addr).await.unwrap_or_else(|e| {
+        panic!("Failed to bind HTTP server to {addr:?}: {}", e);
     });
 
-    let server = Server::bind(&addr).serve(make_svc);
+    log::info!("HTTP server listening on http://{}", addr);
 
-    println!("HTTP server listening on http://{}", addr);
+    loop {
+        let (stream, _) = match listener.accept().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                log::error!("Failed to accept connection: {}", e);
+                continue;
+            }
+        };
 
-    if let Err(e) = server.await {
-        eprintln!("HTTP server error: {}", e);
+        let actor = Arc::clone(&actor);
+
+        tokio::spawn(async move {
+            let io = TokioIo::new(stream);
+            let service = service_fn(move |req| {
+                let actor = Arc::clone(&actor);
+                async move { handle_http_request(actor, req).await }
+            });
+
+            if let Err(e) = Builder::new(hyper_util::rt::TokioExecutor::new())
+                .serve_connection(io, service)
+                .await
+            {
+                log::error!("HTTP connection error: {}", e);
+            }
+        });
     }
 }
 
-/// Handle individual HTTP requests
+/// Handle individual HTTP requests (unified for HTTP and HTTPS)
 async fn handle_http_request<T>(
     actor: Arc<T>,
-    req: Request<Body>,
-) -> Result<Response<Body>, Infallible>
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<Full<Bytes>>, Infallible>
 where
-    T: Actor,
+    T: Actor + Send + Sync + 'static,
 {
-    let method = req.method().clone();
+    let method = req.method().as_str().to_string();
     let path = req.uri().path().to_string();
 
-    match (&method, path.as_str()) {
-        (&Method::POST, path) => {
-            // Extract method name from path (e.g., "/add" -> "add")
-            let method_name = path.trim_start_matches('/');
-
-            // Read the request body
-            let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
-                Ok(bytes) => bytes,
-                Err(_) => {
-                    return Ok(Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::from("Failed to read request body"))
-                        .unwrap());
-                }
-            };
-
-            let body_str = match std::str::from_utf8(&body_bytes) {
-                Ok(s) => s,
-                Err(_) => {
-                    return Ok(Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::from("Invalid UTF-8 in request body"))
-                        .unwrap());
-                }
-            };
-
-            // Process the message using the actor
-            let response = actor.dispatch(method_name, body_str);
-
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Body::from(response))
-                .unwrap())
+    // Read the request body
+    let body_str = match http_body_util::BodyExt::collect(req.into_body()).await {
+        Ok(collected) => match std::str::from_utf8(&collected.to_bytes()) {
+            Ok(s) => s.to_string(),
+            Err(_) => {
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Full::new(Bytes::from("Invalid UTF-8 in request body")))
+                    .unwrap());
+            }
+        },
+        Err(_) => {
+            return Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Full::new(Bytes::from("Failed to read request body")))
+                .unwrap());
         }
-        _ => Ok(Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::from("Not Found"))
-            .unwrap()),
+    };
+
+    // Process the HTTP request
+    if method == "POST" {
+        // Extract method name from path (e.g., "/add" -> "add")
+        let method_name = path.trim_start_matches('/');
+
+        // Process the message using the actor
+        let response_body = (*actor).dispatch(method_name, &body_str).await;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            .header("Access-Control-Allow-Headers", "Content-Type")
+            .body(Full::new(Bytes::from(response_body)))
+            .unwrap())
+    } else if method == "OPTIONS" {
+        // Handle CORS preflight requests
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            .header("Access-Control-Allow-Headers", "Content-Type")
+            .header("Content-Length", "0")
+            .body(Full::new(Bytes::new()))
+            .unwrap())
+    } else {
+        Ok(Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .header("Content-Type", "text/plain")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(Full::new(Bytes::from("Method Not Allowed")))
+            .unwrap())
     }
 }
 
@@ -329,28 +306,45 @@ async fn start_websocket_server<T>(actor: Arc<T>, port: u16)
 where
     T: Actor + Send + Sync + 'static,
 {
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to bind WebSocket server with address {addr:?}: {}",
+                e
+            );
+        });
 
-    println!("WebSocket server listening on ws://{}", addr);
+    log::info!("WebSocket server listening on ws://{}", addr);
 
-    while let Ok((stream, _)) = listener.accept().await {
+    loop {
+        let (stream, _) = match listener.accept().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                log::error!("Failed to accept WebSocket connection: {}", e);
+                continue;
+            }
+        };
+
         let actor = Arc::clone(&actor);
         tokio::spawn(async move {
+            // Handle WebSocket upgrade and connection
             if let Err(e) = handle_websocket_connection(actor, stream).await {
-                eprintln!("WebSocket connection error: {}", e);
+                log::error!("WebSocket connection error: {}", e);
             }
         });
     }
 }
 
-/// Handle individual WebSocket connections
-async fn handle_websocket_connection<T>(
+/// Handle individual WebSocket connections (unified for both TLS and non-TLS)
+async fn handle_websocket_connection<T, S>(
     actor: Arc<T>,
-    stream: tokio::net::TcpStream,
-) -> Result<(), Box<dyn std::error::Error>>
+    stream: S,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
-    T: Actor,
+    T: Actor + Send + Sync + 'static,
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
     let ws_stream = accept_async(stream).await?;
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
@@ -358,36 +352,39 @@ where
     while let Some(msg) = ws_receiver.next().await {
         match msg? {
             Message::Text(text) => {
-                // Parse the JSON to extract method and params
-                let parsed: Result<serde_json::Value, _> = serde_json::from_str(&text);
-                match parsed {
+                // Parse the JSON message
+                match serde_json::from_str::<serde_json::Value>(&text) {
                     Ok(json) => {
-                        let method_name = json
-                            .get("method")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown");
+                        // TLS behavior: strict validation
+                        if let (Some(method), Some(params)) = (
+                            json.get("method").and_then(|v| v.as_str()),
+                            json.get("params"),
+                        ) {
+                            let params_str = params.to_string();
+                            let response = (*actor).dispatch(method, &params_str).await;
 
-                        let params = json
-                            .get("params")
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                            if let Err(_e) = ws_sender.send(Message::Text(response)).await {
+                                log::error!("Failed to send WebSocket response: {}", _e);
+                                break;
+                            }
+                        } else {
+                            let error_response = serde_json::json!({
+                                    "error": "Invalid message format. Expected {\"method\": \"method_name\", \"params\": {...}}"
+                                }).to_string();
 
-                        let params_str =
-                            serde_json::to_string(&params).unwrap_or_else(|_| "{}".to_string());
-
-                        // Process the message using the actor
-                        let response = actor.dispatch(method_name, &params_str);
-
-                        // Send response back
-                        if let Err(e) = ws_sender.send(Message::Text(response)).await {
-                            eprintln!("Failed to send WebSocket response: {}", e);
-                            break;
+                            if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
+                                log::error!("Failed to send WebSocket error response: {}", e);
+                                break;
+                            }
                         }
                     }
-                    Err(_) => {
-                        let error_response = serde_json::to_string("Invalid JSON").unwrap();
+                    Err(e) => {
+                        let error_response =
+                            serde_json::json!({"error": format!("JSON parse error: {}", e)})
+                                .to_string();
+
                         if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
-                            eprintln!("Failed to send WebSocket error response: {}", e);
+                            log::error!("Failed to send WebSocket error response: {}", e);
                             break;
                         }
                     }
@@ -406,165 +403,103 @@ where
 }
 
 /// Start an HTTP server with optional TLS support
-async fn start_http_server_with_tls<T>(actor: Arc<T>, port: u16, tls_config: Option<TlsConfig>)
+async fn start_http_server_with_tls<T>(actor: Arc<T>, port: u16, tls_config: TlsConfig)
 where
     T: Actor + Send + Sync + 'static,
 {
-    match tls_config {
-        Some(tls_config) => {
-            // HTTPS server with TLS
-            match tls_config.load_server_config().await {
-                Ok(tls_server_config) => {
-                    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-                    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-                    let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_server_config));
+    // HTTPS server with TLS
+    match tls_config.load_server_config().await {
+        Ok(tls_server_config) => {
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
+            let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+            let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_server_config));
 
-                    println!("HTTPS server listening on https://{}", addr);
+            log::info!("HTTPS server listening on https://{}", addr);
 
-                    while let Ok((stream, _)) = listener.accept().await {
-                        let actor = Arc::clone(&actor);
-                        let tls_acceptor = tls_acceptor.clone();
-
-                        tokio::spawn(async move {
-                            match tls_acceptor.accept(stream).await {
-                                Ok(tls_stream) => {
-                                    if let Err(e) = handle_https_connection(actor, tls_stream).await
-                                    {
-                                        eprintln!("HTTPS connection error: {}", e);
-                                    }
-                                }
-                                Err(e) => {
-                                    eprintln!("TLS handshake error: {}", e);
-                                }
-                            }
-                        });
+            loop {
+                let (stream, _) = match listener.accept().await {
+                    Ok(conn) => conn,
+                    Err(e) => {
+                        log::error!("Failed to accept HTTPS connection: {}", e);
+                        continue;
                     }
-                }
-                Err(e) => {
-                    eprintln!("Failed to load TLS configuration: {}", e);
-                }
+                };
+
+                let actor = Arc::clone(&actor);
+                let tls_acceptor = tls_acceptor.clone();
+
+                tokio::spawn(async move {
+                    match tls_acceptor.accept(stream).await {
+                        Ok(tls_stream) => {
+                            if let Err(e) = handle_https_connection(actor, tls_stream).await {
+                                log::error!("HTTPS connection error: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("TLS handshake error: {}", e);
+                        }
+                    }
+                });
             }
         }
-        None => {
-            // Regular HTTP server
-            start_http_server(actor, port).await;
+        Err(e) => {
+            log::error!("Failed to load TLS configuration: {}", e);
         }
     }
 }
 
 /// Start a WebSocket server with optional TLS support
-async fn start_websocket_server_with_tls<T>(actor: Arc<T>, port: u16, tls_config: Option<TlsConfig>)
+async fn start_websocket_server_with_tls<T>(actor: Arc<T>, port: u16, tls_config: TlsConfig)
 where
     T: Actor + Send + Sync + 'static,
 {
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| {
+            panic!("Failed to bind WSS server address {addr:?}: {}", e);
+        });
 
-    match tls_config {
-        Some(tls_config) => {
-            // WSS server with TLS
-            match tls_config.load_server_config().await {
-                Ok(tls_server_config) => {
-                    let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_server_config));
+    // WSS server with TLS
+    match tls_config.load_server_config().await {
+        Ok(tls_server_config) => {
+            let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_server_config));
 
-                    println!("WSS server listening on wss://{}", addr);
+            log::info!("WSS server listening on wss://{}", addr);
 
-                    while let Ok((stream, _)) = listener.accept().await {
-                        let actor = Arc::clone(&actor);
-                        let tls_acceptor = tls_acceptor.clone();
-
-                        tokio::spawn(async move {
-                            match tls_acceptor.accept(stream).await {
-                                Ok(tls_stream) => {
-                                    if let Err(e) =
-                                        handle_websocket_connection_tls(actor, tls_stream).await
-                                    {
-                                        eprintln!("WSS connection error: {}", e);
-                                    }
-                                }
-                                Err(e) => {
-                                    eprintln!("TLS handshake error: {}", e);
-                                }
-                            }
-                        });
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Failed to load TLS configuration: {}", e);
-                }
-            }
-        }
-        None => {
-            // Regular WebSocket server
-            start_websocket_server(actor, port).await;
-        }
-    }
-}
-
-/// Handle individual WebSocket connections over TLS
-async fn handle_websocket_connection_tls<T>(
-    actor: Arc<T>,
-    stream: tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
-where
-    T: Actor + Send + Sync + 'static,
-{
-    let ws_stream = accept_async(stream).await?;
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-
-    while let Some(msg) = ws_receiver.next().await {
-        match msg? {
-            Message::Text(text) => {
-                // Parse the JSON message
-                match serde_json::from_str::<serde_json::Value>(&text) {
-                    Ok(json) => {
-                        if let (Some(method), Some(params)) = (
-                            json.get("method").and_then(|v| v.as_str()),
-                            json.get("params"),
-                        ) {
-                            let params_str = params.to_string();
-                            let response = actor.dispatch(method, &params_str);
-
-                            if let Err(e) = ws_sender.send(Message::Text(response)).await {
-                                eprintln!("Failed to send WebSocket response: {}", e);
-                                break;
-                            }
-                        } else {
-                            let error_response = serde_json::json!({
-                                "error": "Invalid message format. Expected {\"method\": \"method_name\", \"params\": {...}}"
-                            }).to_string();
-
-                            if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
-                                eprintln!("Failed to send WebSocket error response: {}", e);
-                                break;
-                            }
-                        }
-                    }
+            loop {
+                let (stream, _) = match listener.accept().await {
+                    Ok(conn) => conn,
                     Err(e) => {
-                        let error_response = serde_json::json!({
-                            "error": format!("JSON parse error: {}", e)
-                        })
-                        .to_string();
+                        log::error!("Failed to accept WSS connection: {}", e);
+                        continue;
+                    }
+                };
 
-                        if let Err(e) = ws_sender.send(Message::Text(error_response)).await {
-                            eprintln!("Failed to send WebSocket error response: {}", e);
-                            break;
+                let actor = Arc::clone(&actor);
+                let tls_acceptor = tls_acceptor.clone();
+
+                tokio::spawn(async move {
+                    match tls_acceptor.accept(stream).await {
+                        Ok(tls_stream) => {
+                            if let Err(e) = handle_websocket_connection(actor, tls_stream).await {
+                                log::error!("WSS connection error: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("TLS handshake error: {}", e);
                         }
                     }
-                }
+                });
             }
-            Message::Close(_) => {
-                break;
-            }
-            // Ignore other message types (binary, ping, pong)
-            _ => {}
+        }
+        Err(e) => {
+            log::error!("Failed to load TLS configuration: {}", e);
         }
     }
-
-    Ok(())
 }
 
-/// Handle individual HTTPS connections
+/// Handle individual HTTPS connections using hyper-rustls
 async fn handle_https_connection<T>(
     actor: Arc<T>,
     stream: tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
@@ -572,158 +507,22 @@ async fn handle_https_connection<T>(
 where
     T: Actor + Send + Sync + 'static,
 {
-    // For a full HTTPS implementation, you would need to implement HTTP/1.1 parsing
-    // This is a simplified version that demonstrates the TLS connection handling
-    // In production, you'd want to use hyper-rustls for proper HTTPS support
+    let io = TokioIo::new(stream);
 
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let service = service_fn(move |req| {
+        let actor = actor.clone();
+        async move { handle_http_request(actor, req).await }
+    });
 
-    let mut buffer = [0; 1024];
-    let mut stream = stream;
-
-    // Read the HTTP request
-    match stream.read(&mut buffer).await {
-        Ok(n) if n > 0 => {
-            let request = String::from_utf8_lossy(&buffer[..n]);
-
-            // Simple HTTP parsing - extract method and path
-            let lines: Vec<&str> = request.lines().collect();
-            if let Some(request_line) = lines.first() {
-                let parts: Vec<&str> = request_line.split_whitespace().collect();
-                if parts.len() >= 2 && parts[0] == "POST" {
-                    let path = parts[1];
-                    let method_name = path.trim_start_matches('/');
-
-                    // Find the request body (after empty line)
-                    let mut body = String::new();
-                    let mut found_empty_line = false;
-                    for line in lines.iter() {
-                        if found_empty_line {
-                            body.push_str(line);
-                        } else if line.is_empty() {
-                            found_empty_line = true;
-                        }
-                    }
-
-                    // Process the request
-                    let response_body = actor.dispatch(method_name, &body);
-
-                    // Send HTTP response
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                        response_body.len(),
-                        response_body
-                    );
-
-                    if let Err(e) = stream.write_all(response.as_bytes()).await {
-                        eprintln!("Failed to write HTTPS response: {}", e);
-                    }
-                } else {
-                    // Send 405 Method Not Allowed
-                    let response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
-                    let _ = stream.write_all(response.as_bytes()).await;
-                }
-            }
-        }
-        Ok(_) => {
-            // Empty request
-        }
-        Err(e) => {
-            eprintln!("Failed to read HTTPS request: {}", e);
-        }
+    // Serve the HTTP request using hyper 1.7 API
+    if let Err(e) = Builder::new(hyper_util::rt::TokioExecutor::new())
+        .serve_connection(io, service)
+        .await
+    {
+        log::error!("HTTPS connection error: {}", e);
     }
 
     Ok(())
-}
-
-/// Example actor demonstrating the generated documentation
-///
-/// This actor shows how the `#[actor]` macro generates comprehensive RustDoc
-/// documentation for your Actor implementations.
-#[derive(Debug, Clone)]
-pub struct ExampleActor {
-    /// The name of this actor instance
-    pub name: String,
-    /// A counter that can be incremented
-    pub counter: i32,
-}
-
-impl ExampleActor {
-    /// Create a new ExampleActor with the given name
-    pub fn new(name: String) -> Self {
-        Self { name, counter: 0 }
-    }
-}
-
-#[actor]
-impl ExampleActor {
-    /// Add two numbers together
-    ///
-    /// This method performs basic arithmetic addition and returns the result.
-    /// It demonstrates how methods with multiple parameters are documented.
-    pub async fn add(&self, a: i32, b: i32) -> i32 {
-        a + b
-    }
-
-    /// Get the current counter value
-    ///
-    /// Returns the current value of the internal counter.
-    /// This method takes no parameters besides `&self`.
-    pub async fn get_counter(&self) -> i32 {
-        self.counter
-    }
-
-    /// Greet someone with a personalized message
-    ///
-    /// Creates a friendly greeting that includes both the provided name
-    /// and this actor's name. Demonstrates string parameter handling.
-    pub async fn greet(&self, name: String) -> String {
-        format!("Hello {}, I'm {}!", name, self.name)
-    }
-
-    /// Calculate the area of a rectangle
-    ///
-    /// Given width and height as floating-point numbers, calculates
-    /// and returns the area. Shows how floating-point parameters work.
-    pub async fn calculate_area(&self, width: f64, height: f64) -> f64 {
-        width * height
-    }
-
-    /// Check if a number is even
-    ///
-    /// Returns `true` if the given number is even, `false` otherwise.
-    /// Demonstrates boolean return values.
-    pub async fn is_even(&self, number: i32) -> bool {
-        number % 2 == 0
-    }
-
-    /// Get information about this actor
-    ///
-    /// Returns a formatted string containing the actor's name and counter value.
-    /// This method shows how to access actor state in the documentation.
-    pub async fn info(&self) -> String {
-        format!("ExampleActor '{}' with counter {}", self.name, self.counter)
-    }
-
-    /// Simple ping method with no parameters
-    ///
-    /// A basic method that takes no parameters and returns a fixed response.
-    /// Useful for health checks or testing connectivity.
-    pub async fn ping(&self) -> String {
-        "pong".to_string()
-    }
-
-    /// Divide two numbers with error handling
-    ///
-    /// Performs division and returns a Result to handle division by zero.
-    /// Demonstrates how Result types are documented and handled.
-    pub async fn divide(&self, a: f64, b: f64) -> Result<f64, String> {
-        if b == 0.0 {
-            Err("Division by zero".to_string())
-        } else {
-            Ok(a / b)
-        }
-    }
 }
 
 #[cfg(test)]

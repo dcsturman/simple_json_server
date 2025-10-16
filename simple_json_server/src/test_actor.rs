@@ -32,13 +32,13 @@ impl TestActor {
     // This should be ignored (not public)
     #[allow(dead_code)]
     async fn private_method(&self) -> String {
-        "This should not be accessible".to_string()
+        unreachable!("A private method should not be reachable via dispatch.");
     }
 
     #[allow(dead_code)]
     // This should be ignored (not async)
     pub fn sync_method(&self) -> String {
-        "This should not be accessible".to_string()
+        unreachable!("A non-async method should not be reachable via dispatch.");
     }
 }
 
@@ -46,51 +46,75 @@ impl TestActor {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_add_method() {
+    #[tokio::test]
+    async fn test_add_method() {
         let actor = TestActor::new();
         let message = r#"{"a": 5, "b": 3}"#;
-        let result = actor.dispatch("add", message);
+        let result = actor.dispatch("add", message).await;
         assert_eq!(result, "8");
     }
 
-    #[test]
-    fn test_get_counter_method() {
+    #[tokio::test]
+    async fn test_get_counter_method() {
         let actor = TestActor::new();
         let message = r#"{}"#;
-        let result = actor.dispatch("get_counter", message);
+        let result = actor.dispatch("get_counter", message).await;
         assert_eq!(result, "0");
     }
 
-    #[test]
-    fn test_greet_method() {
+    #[tokio::test]
+    async fn test_greet_method() {
         let actor = TestActor::new();
         let message = r#"{"name": "World"}"#;
-        let result = actor.dispatch("greet", message);
+        let result = actor.dispatch("greet", message).await;
         assert_eq!(result, r#""Hello, World!""#);
     }
 
-    #[test]
-    fn test_no_params_method() {
+    #[tokio::test]
+    async fn test_no_params_method() {
         let actor = TestActor::new();
         let message = r#"{}"#;
-        let result = actor.dispatch("no_params", message);
+        let result = actor.dispatch("no_params", message).await;
         assert_eq!(result, r#""No parameters needed""#);
     }
 
-    #[test]
-    fn test_unknown_method() {
+    #[tokio::test]
+    async fn test_unknown_method() {
         let actor = TestActor::new();
         let message = r#"{}"#;
-        let result = actor.dispatch("unknown", message);
+        let result = actor.dispatch("unknown", message).await;
         assert!(result.contains("Unknown method"));
     }
 
-    #[test]
-    fn test_invalid_json() {
+    #[tokio::test]
+    async fn test_invalid_json() {
         let actor = TestActor::new();
         let message = r#"{"invalid": json"#;
-        let result = actor.dispatch("invalid", message);
+        let result = actor.dispatch("invalid", message).await;
         assert!(result.contains("Failed to parse JSON"));
+    }
+
+    #[tokio::test]
+    async fn test_private_method_not_accessible() {
+        let actor = TestActor::new();
+        let message = r#"{}"#;
+        let result = actor.dispatch("private_method", message).await;
+        assert!(
+            result.contains("Unknown method: private_method"),
+            "Private methods should not be accessible via dispatch. Got: {}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_method_not_accessible() {
+        let actor = TestActor::new();
+        let message = r#"{}"#;
+        let result = actor.dispatch("sync_method", message).await;
+        assert!(
+            result.contains("Unknown method: sync_method"),
+            "Non-async methods should not be accessible via dispatch. Got: {}",
+            result
+        );
     }
 }

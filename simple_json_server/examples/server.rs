@@ -18,25 +18,25 @@ impl ServerCalculator {
 impl ServerCalculator {
     /// Add two numbers
     pub async fn add(&self, a: f64, b: f64) -> f64 {
-        println!("[{}] Adding {} + {}", self.name, a, b);
+        log::info!("[{}] Adding {} + {}", self.name, a, b);
         a + b
     }
 
     /// Subtract two numbers
     pub async fn subtract(&self, a: f64, b: f64) -> f64 {
-        println!("[{}] Subtracting {} - {}", self.name, a, b);
+        log::info!("[{}] Subtracting {} - {}", self.name, a, b);
         a - b
     }
 
     /// Multiply two numbers
     pub async fn multiply(&self, a: f64, b: f64) -> f64 {
-        println!("[{}] Multiplying {} * {}", self.name, a, b);
+        log::info!("[{}] Multiplying {} * {}", self.name, a, b);
         a * b
     }
 
     /// Divide two numbers
     pub async fn divide(&self, a: f64, b: f64) -> Result<f64, String> {
-        println!("[{}] Dividing {} / {}", self.name, a, b);
+        log::info!("[{}] Dividing {} / {}", self.name, a, b);
         if b == 0.0 {
             Err("Division by zero".to_string())
         } else {
@@ -55,22 +55,26 @@ impl ServerCalculator {
     }
 }
 
-fn main() {
-    println!("Starting Calculator Servers...");
+#[tokio::main]
+async fn main() {
+    // Initialize logger
+    env_logger::init();
+
+    log::info!("Starting Calculator Servers...");
 
     // Create calculator instances
     let http_calc = ServerCalculator::new("HTTP-Server".to_string());
     let ws_calc = ServerCalculator::new("WebSocket-Server".to_string());
 
     // Start HTTP server on port 8080 (consumes http_calc)
-    println!("Starting HTTP server on port 8080...");
-    http_calc.create_options(8080, false);
+    log::info!("Starting HTTP server on port 8080...");
+    http_calc.create_options(8080, false, None);
 
     // Start WebSocket server on port 8081 (consumes ws_calc)
-    println!("Starting WebSocket server on port 8081...");
-    ws_calc.create_options(8081, true);
+    log::info!("Starting WebSocket server on port 8081...");
+    ws_calc.create_options(8081, true, None);
 
-    println!("Servers started!");
+    log::info!("Servers started!");
     println!();
     println!("HTTP Server Examples:");
     println!("  curl -X POST http://127.0.0.1:8080/add -d '{{\"a\": 10, \"b\": 5}}'");

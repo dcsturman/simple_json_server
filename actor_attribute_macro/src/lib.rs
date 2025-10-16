@@ -73,11 +73,18 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
 
             dispatch_arms.push(quote! {
                     #method_name_str => {
-                        let msg_params: #message_struct_name = serde_json::from_value(params)
-                            .map_err(|e| format!("Failed to deserialize parameters for {}: {}", #method_name_str, e))?;
-                        let result = #method_call;
-                        serde_json::to_string(&result)
-                            .map_err(|e| format!("Failed to serialize result for {}: {}", #method_name_str, e))
+                        match serde_json::from_value::<#message_struct_name>(params) {
+                            Ok(msg_params) => {
+                                let result = #method_call;
+                                match serde_json::to_string(&result) {
+                                    Ok(json_result) => json_result,
+                                    Err(e) => serde_json::to_string(&format!("Failed to serialize result for {}: {}", #method_name_str, e))
+                                        .unwrap_or_else(|_| "\"Serialization error\"".to_string())
+                                }
+                            }
+                            Err(e) => serde_json::to_string(&format!("Failed to deserialize parameters for {}: {}", #method_name_str, e))
+                                .unwrap_or_else(|_| "\"Deserialization error\"".to_string())
+                        }
                     }
                 });
 
@@ -92,7 +99,8 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     let actor_impl = quote! {
         #[doc = #doc_string]
         impl crate::Actor for #struct_type {
-            fn dispatch(&self, method_name: &str, msg: &str) -> String {
+            fn dispatch(&self, method_name: &str, msg: &str) -> impl std::future::Future<Output = String> + Send {
+                async move {
                 // Define message structs locally
                 #(#message_structs)*
 
@@ -104,18 +112,12 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
                 };
 
 
-                // Create async runtime for calling async methods
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                let result: Result<String, String> = rt.block_on(async {
-                    match method_name {
-                        #(#dispatch_arms)*
-                        _ => Err(format!("Unknown method: {}", method_name))
-                    }
-                });
-
-                match result {
-                    Ok(json_result) => json_result,
-                    Err(error_msg) => serde_json::to_string(&error_msg).unwrap_or_else(|_| "\"Serialization error\"".to_string()),
+                // Execute async methods directly
+                match method_name {
+                    #(#dispatch_arms)*
+                    _ => serde_json::to_string(&format!("Unknown method: {}", method_name))
+                        .unwrap_or_else(|_| "\"Unknown method error\"".to_string())
+                }
                 }
             }
         }
@@ -265,19 +267,52 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
         }
         doc.push_str("```\n\n");
 
+        // WebSocket payload example
+        doc.push_str("**WebSocket Payload:**\n");
+        doc.push_str("For web socket usage, we must embed the method name in the request separately from the parameters");
+        doc.push_str(" - we cannot just use the URL as we do with HTTP as we want a long-lived connection for all invocations.");
+        doc.push_str(
+            "We build a single payload with a `method` field and a `params` field as follows:\n",
+        );
+        doc.push_str("```json\n");
+        doc.push_str(&format!(
+            "{{\n  \"method\": \"{}\",\n  \"params\": ",
+            method_name
+        ));
+        if params.is_empty() {
+            doc.push_str("{}\n");
+        } else {
+            doc.push_str("{\n");
+            for (i, (name, ty)) in params.iter().enumerate() {
+                let example_value = generate_example_value(ty);
+                let comma = if i == params.len() - 1 { "" } else { "," };
+                doc.push_str(&format!("    \"{}\": {}{}\n", name, example_value, comma));
+            }
+            doc.push_str("  }\n");
+        }
+        doc.push_str("}\n");
+        doc.push_str("```\n\n");
+
         // Usage example
         doc.push_str("**Usage Example from Javascript:**\n");
         doc.push_str("```js\n");
         if params.is_empty() {
             doc.push_str(&format!(
-                "result = await fetch(\"http://localhost:9000/{}\");\n",
+                "result = await fetch(\"http://localhost:9000/{}\", {{\n",
                 method_name_str
             ));
+            doc.push_str("  method: 'POST',\n");
+            doc.push_str("  headers: { 'Content-Type': 'application/json' },\n");
+            doc.push_str("  body: JSON.stringify({})\n");
+            doc.push_str("});\n");
         } else {
             doc.push_str(&format!(
-                "result = await fetch(\"http://localhost:9000/{}\", {{ body: JSON.stringify(",
+                "result = await fetch(\"http://localhost:9000/{}\", {{\n",
                 method_name_str
             ));
+            doc.push_str("  method: 'POST',\n");
+            doc.push_str("  headers: { 'Content-Type': 'application/json' },\n");
+            doc.push_str("  body: JSON.stringify(");
             if params.len() == 1 {
                 let (name, ty) = &params[0];
                 let example_value = generate_example_value(ty);
@@ -287,13 +322,20 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
                 for (i, (name, ty)) in params.iter().enumerate() {
                     let example_value = generate_example_value(ty);
                     let comma = if i == params.len() - 1 { "" } else { "," };
-                    doc.push_str(&format!("  {}: {}{}\n", name, example_value, comma));
+                    doc.push_str(&format!("    {}: {}{}\n", name, example_value, comma));
                 }
-                doc.push('}');
+                doc.push_str("  }");
             }
-            doc.push_str(")});\n");
+            doc.push_str(")\n});\n");
         }
         doc.push_str("```\n\n");
+
+        // Add note about Content-Type header
+        doc.push_str("**Note about Content-Type header:**\n");
+        doc.push_str("The `Content-Type: application/json` header is recommended for proper HTTP semantics ");
+        doc.push_str("and browser CORS handling, though the server will accept any content type as long as ");
+        doc.push_str("the body contains valid JSON. Without this header, browsers may send ");
+        doc.push_str("`application/x-www-form-urlencoded` by default.\n\n");
     }
 
     doc

@@ -58,25 +58,26 @@ impl DocumentedActor {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let actor = DocumentedActor::new("TestActor".to_string());
 
     println!("Testing documented actor methods:");
 
     // Test add method
-    let result = actor.dispatch("add", r#"{"a": 10, "b": 5}"#);
+    let result = actor.dispatch("add", r#"{"a": 10, "b": 5}"#).await;
     println!("add(10, 5) = {}", result);
 
     // Test greet method
-    let result = actor.dispatch("greet", r#"{"name": "World"}"#);
+    let result = actor.dispatch("greet", r#"{"name": "World"}"#).await;
     println!("greet(\"World\") = {}", result);
 
     // Test ping method (no parameters)
-    let result = actor.dispatch("ping", "{}");
+    let result = actor.dispatch("ping", "{}").await;
     println!("ping() = {}", result);
 
     // Test is_even method
-    let result = actor.dispatch("is_even", r#"{"number": 42}"#);
+    let result = actor.dispatch("is_even", r#"{"number": 42}"#).await;
     println!("is_even(42) = {}", result);
 
     println!("\nTo see the generated documentation, run:");

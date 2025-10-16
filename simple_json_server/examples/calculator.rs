@@ -54,7 +54,8 @@ impl Calculator {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let calc = Calculator::default();
 
     // Example usage
@@ -63,26 +64,26 @@ fn main() {
 
     // Test addition
     let add_msg = r#"{"a": 10.5, "b": 5.2}"#;
-    let result = calc.dispatch("add", add_msg);
+    let result = calc.dispatch("add", add_msg).await;
     println!("Add 10.5 + 5.2 = {}", result);
 
     // Test division
     let div_msg = r#"{"a": 20.0, "b": 4.0}"#;
-    let result = calc.dispatch("divide", div_msg);
+    let result = calc.dispatch("divide", div_msg).await;
     println!("Divide 20.0 / 4.0 = {}", result);
 
     // Test division by zero
     let div_zero_msg = r#"{"a": 10.0, "b": 0.0}"#;
-    let result = calc.dispatch("divide", div_zero_msg);
+    let result = calc.dispatch("divide", div_zero_msg).await;
     println!("Divide 10.0 / 0.0 = {}", result);
 
     // Test method with no parameters
     let info_msg = r#"{}"#;
-    let result = calc.dispatch("info", info_msg);
+    let result = calc.dispatch("info", info_msg).await;
     println!("Info: {}", result);
 
     // Test unknown method
     let unknown_msg = r#"{}"#;
-    let result = calc.dispatch("unknown", unknown_msg);
+    let result = calc.dispatch("unknown", unknown_msg).await;
     println!("Unknown method: {}", result);
 }

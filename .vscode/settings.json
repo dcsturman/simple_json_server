@@ -1,0 +1,10 @@
+{
+    "coverage-gutters.coverageFileNames": [
+        "lcov.info",
+        "simple_json_server/lcov.info",
+        "target/llvm-cov/lcov.info"
+    ],
+    "coverage-gutters.showLineCoverage": true,
+    "coverage-gutters.showRulerCoverage": true,
+    "coverage-gutters.showGutterCoverage": true
+}

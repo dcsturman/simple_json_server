@@ -1,0 +1,27 @@
+{
+  "name": "simple-json-server-demo-client",
+  "version": "1.0.0",
+  "description": "JavaScript client for testing the SimpleServerDemo Rust actor",
+  "main": "client.js",
+  "scripts": {
+    "test": "node client.js",
+    "install-deps": "npm install",
+    "start": "node client.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.0"
+  },
+  "keywords": [
+    "rust",
+    "actor",
+    "json-rpc",
+    "websocket",
+    "http",
+    "client"
+  ],
+  "author": "Simple JSON Server Demo",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
