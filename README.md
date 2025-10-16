@@ -269,7 +269,7 @@ This project uses comprehensive GitHub Actions workflows to ensure code quality:
 - **Security Audits**: Regular `cargo audit` checks for vulnerabilities
 - **License Compliance**: Automated license checking with `cargo-deny`
 - **Dependency Updates**: Weekly automated dependency update PRs
-- **MSRV Testing**: Ensures compatibility with minimum supported Rust version (1.77+)
+- **MSRV Testing**: Ensures compatibility with minimum supported Rust version (1.85+)
 
 ### 📚 **Documentation & Releases**
 - **Documentation Building**: Validates all docs build correctly

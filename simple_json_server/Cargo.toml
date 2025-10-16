@@ -1,7 +1,7 @@
 [package]
 name = "simple_json_server"
 version = "1.0.0"
-edition = "2024"
+edition = "2021"
 license-file = "../LICENSE.txt"
 description = "A simple way to build a JSON-based server with automatic JSON serialization/deserialization, error handling, async support, type safety, and comprehensive RustDoc generation."
 docs.rs = "https://docs.rs/simple_json_server"
