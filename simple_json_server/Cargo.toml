@@ -7,7 +7,7 @@ description = "A simple way to build a JSON-based server with automatic JSON ser
 docs.rs = "https://docs.rs/simple_json_server"
 repository = "https://github.com/dcsturman/simple_json_server"
 readme = "../README.md"
-keywords = ["server", "json", "rpc", "actor", "macro", "websockets"]
+keywords = ["server", "json", "rpc", "macro", "websockets"]
 categories = ["api-bindings", "concurrency"]
 
 [dependencies]
