@@ -269,7 +269,7 @@ This project uses comprehensive GitHub Actions workflows to ensure code quality:
 - **Security Audits**: Regular `cargo audit` checks for vulnerabilities
 - **License Compliance**: Automated license checking with `cargo-deny`
 - **Dependency Updates**: Weekly automated dependency update PRs
-- **MSRV Testing**: Ensures compatibility with minimum supported Rust version
+- **MSRV Testing**: Ensures compatibility with minimum supported Rust version (1.77+)
 
 ### 📚 **Documentation & Releases**
 - **Documentation Building**: Validates all docs build correctly
@@ -284,7 +284,7 @@ This project uses comprehensive GitHub Actions workflows to ensure code quality:
 
 ### 📈 **Quality Metrics**
 - **Build Status**: [![CI](https://github.com/dcsturman/simple_json_server/workflows/CI/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
-- **Coverage**: [![codecov](https://codecov.io/gh/dcsturman/simple_json_server/branch/main/graph/badge.svg?token=YOUR_CODECOV_TOKEN)](https://codecov.io/gh/dcsturman/simple_json_server)
+- **Coverage**: [![codecov](https://codecov.io/gh/YOUR_USERNAME/simple_json_server/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/simple_json_server)
 - **Security**: [![Security Audit](https://github.com/dcsturman/simple_json_server/workflows/Dependencies/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
 
 All workflows are designed to maintain high code quality while enabling rapid development and reliable releases.

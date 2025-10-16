@@ -1,0 +1,71 @@
+# Codecov configuration
+# See https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  # Coverage precision (number of decimal places)
+  precision: 2
+  
+  # Coverage rounding
+  round: down
+  
+  # Coverage range (red to green)
+  range: "70...90"
+  
+  # Status checks
+  status:
+    # Overall project coverage
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+        if_no_uploads: error
+        if_not_found: success
+        if_ci_failed: error
+    
+    # Patch coverage (new code)
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+        if_no_uploads: error
+        if_not_found: success
+        if_ci_failed: error
+
+# Comment configuration
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
+# Ignore paths
+ignore:
+  - "target/"
+  - "examples/demo/node_modules/"
+  - "scripts/"
+  - "docs/"
+  - "*.md"
+  - "*.toml"
+  - "*.yml"
+  - "*.yaml"
+
+# Flags for different parts of the codebase
+flags:
+  # Core library
+  core:
+    paths:
+      - simple_json_server/src/
+    carryforward: true
+  
+  # Macro implementation
+  macro:
+    paths:
+      - actor_attribute_macro/src/
+    carryforward: true
+  
+  # Integration tests
+  integration:
+    paths:
+      - simple_json_server/tests/
+    carryforward: true

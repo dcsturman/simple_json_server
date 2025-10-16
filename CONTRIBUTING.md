@@ -25,7 +25,7 @@ Thank you for your interest in contributing to simple_json_server! This document
 ## 🛠️ Development Setup
 
 ### Prerequisites
-- **Rust** (latest stable version recommended)
+- **Rust** (1.77+ required, latest stable recommended)
 - **Node.js** (for JavaScript integration tests)
 - **Git**
 
