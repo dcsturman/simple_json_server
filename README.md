@@ -3,13 +3,21 @@
 This library is intended to make it very easy to build a JSON-based server. Because its JSON it is easily called from multiple languages (think a TypeScript client).
 The goal is to provide a lot of functionality out of the box but with excellent ergonomics so that simple servers are easily built without almost any boilerplate.
 
-The approach is based on the [Actor model](https://en.wikipedia.org/wiki/Actor_model) of computation with some necessary deviations from the pure model. We'll document those
-deviations here. Initially they are:
+This library is intended to make it very easy to build a JSON-based server. Because its JSON it is easily called from multiple languages (think a TypeScript client).
+The goal is to provide a lot of functionality out of the box but with excellent ergonomics so that simple servers are easily built without almost any boilerplate.
 
-- Rust itself isn't functional in the same way as Lisp. So we eschew `become` as a keyword and generally find completely changing behavior is superfluous for general work.
-- Each actor is single threaded; we take this approach instead of using `become` to manage state changes.
-- Addresses are well known. This is critical to support cross language invocation (the classic client/server case) and contrasts from the Actor model where addresses are passed around.
-- RPC and return values are supported. Again, this is important to simplify cross language invocation and generally simplifies all distributed code at the cost of asynchronous execution and parallelism. In the future we'll look to optimize cases that don't need return values by not waiting for method completion.
+The macro both creates your simple server (an actor) from an impl of your struct and also generates documentation for your actor so its 100% clear how to call it.
+
+The way `simple_json_server` works is:
+1. Create a `struct` and create an `impl` block for it.  The `impl` block should contain all the methods you want to expose on your server.  The methods must be `pub async fn` and take `&self` as the first parameter.  Others are ignored for this purpose.
+2. The `#[actor]` macro will generate the code to make your struct into an actor.  Each method in turn gets turned into a JSON-RPC where:
+  * the RPC name is the name of the method in your `impl`.
+  * the parameters are JSONified parameters of the method.  They are automatically turned into a JSON object with the name of the parameter as the key.  The value is the JSON equivalent of the value of the parameter.
+  * the return value is the JSONified return value of the method.
+  * the macro will generate documentation for your actor so its 100% clear how to call it including the specific JSON payload needed to call the method.
+
+3. The `create` method will start a server for you and begin listening for incoming JSON-RPC calls via HTTP. `create_ws` will do the same but via WebSocket.  Options for `https` and `wss` are also provided.
+
 
 ## Quick Start
 
@@ -47,9 +55,7 @@ impl Calculator {
 fn main() {
     let calc = Calculator::new();
 
-    // The macro automatically implements the Actor trait
-    let result = calc.dispatch(r#"{"method": "add", "params": {"a": 10.5, "b": 5.2}}"#);
-    println!("Result: {}", result); // Prints: Result: 15.7
+    calc.create(8080);
 }
 ```
 
@@ -64,9 +70,6 @@ The `#[actor]` procedural macro automatically implements the `Actor` trait for y
 ### Features
 
 - **Automatic JSON serialization/deserialization** of parameters and return values
-- **Error handling** for invalid JSON, unknown methods, and parameter mismatches
-- **Async support** with automatic runtime management
-- **Type safety** with generated message structs
 - **Snake_case to PascalCase** conversion for message struct names
 - **Comprehensive RustDoc generation** with method tables, JSON payload examples, and usage instructions
 - **TLS/SSL support** for secure HTTPS and WSS (WebSocket Secure) connections
@@ -84,7 +87,7 @@ Private methods and synchronous methods are ignored.
 
 The library includes built-in HTTP and WebSocket server support. Use the `create_options` method to start a server.
 
-**Note**: `create_options` consumes the actor (moves it), preventing accidental use after starting the server. This is a safety feature that ensures the actor is only used within the server context.
+**Note**: `create` and variants on `create` consumes the actor (moves it), preventing accidental use after starting the server. This is a safety feature that ensures the actor is only used within the server context.
 
 ```rust
 use simple_json_server::{Actor, actor};
@@ -107,10 +110,10 @@ fn main() {
     let ws_actor = MyActor { name: "WebSocket-Server".to_string() };
 
     // Start HTTP server on port 8080 (consumes http_actor)
-    http_actor.create_options(8080, false);
+    http_actor.create(8080);
 
     // Start WebSocket server on port 8081 (consumes ws_actor)
-    ws_actor.create_options(8081, true);
+    ws_actor.create_ws(8081);
 
     // Keep main thread alive
     loop {
@@ -247,45 +250,3 @@ The generated documentation includes:
 - **Parameter specifications** with type information
 
 This makes it easy to understand the JSON API without looking at the source code!
-
-## CI/CD and Quality Assurance
-
-This project uses comprehensive GitHub Actions workflows to ensure code quality:
-
-### 🔄 **Continuous Integration**
-- **Multi-Rust Version Testing**: Tests on stable, beta, and nightly Rust
-- **Code Formatting**: Enforces consistent formatting with `rustfmt`
-- **Linting**: Uses `clippy` with strict warnings
-- **Comprehensive Testing**: Runs all unit and integration tests
-- **Example Validation**: Ensures all examples compile and run
-
-### 📊 **Code Coverage**
-- **Coverage Reports**: Generated using `cargo llvm-cov`
-- **Codecov Integration**: Automatic coverage reporting and tracking
-- **Coverage Artifacts**: HTML reports available for download
-- **Target**: Maintains 80%+ coverage on testable code
-
-### 🔒 **Security & Dependencies**
-- **Security Audits**: Regular `cargo audit` checks for vulnerabilities
-- **License Compliance**: Automated license checking with `cargo-deny`
-- **Dependency Updates**: Weekly automated dependency update PRs
-- **MSRV Testing**: Ensures compatibility with minimum supported Rust version (1.85+)
-
-### 📚 **Documentation & Releases**
-- **Documentation Building**: Validates all docs build correctly
-- **Release Automation**: Automatic binary builds for multiple platforms
-- **Crate Publishing**: Automated publishing to crates.io on tags
-- **Cross-Platform**: Builds for Linux, Windows, and macOS (x86_64 + ARM64)
-
-### 🧪 **Integration Testing**
-- **JavaScript Client Testing**: Validates the generated JSON-RPC interface
-- **Server Lifecycle Testing**: Tests server startup, API calls, and shutdown
-- **Cross-Language Validation**: Ensures Rust-JavaScript interoperability
-
-### 📈 **Quality Metrics**
-- **Build Status**: [![CI](https://github.com/dcsturman/simple_json_server/workflows/CI/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
-- **Coverage**: [![codecov](https://codecov.io/gh/YOUR_USERNAME/simple_json_server/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/simple_json_server)
-- **Security**: [![Security Audit](https://github.com/dcsturman/simple_json_server/workflows/Dependencies/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
-
-All workflows are designed to maintain high code quality while enabling rapid development and reliable releases.
-
