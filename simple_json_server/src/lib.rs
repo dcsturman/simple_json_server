@@ -30,7 +30,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     GreetActor::new().create(8080);
+//!     GreetActor.create(8080);
 //! }
 //! ```
 //!
