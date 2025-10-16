@@ -1,4 +1,4 @@
-use simple_json_server::{Actor, TlsConfig, actor};
+use simple_json_server::{actor, Actor, TlsConfig};
 use std::thread;
 use std::time::Duration;
 

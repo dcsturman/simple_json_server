@@ -1,4 +1,4 @@
-use simple_json_server::{Actor, actor};
+use simple_json_server::{actor, Actor};
 
 /// A sample actor to demonstrate the generated documentation
 #[derive(Debug, Clone)]

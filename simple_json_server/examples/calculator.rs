@@ -1,4 +1,4 @@
-use simple_json_server::{Actor, actor};
+use simple_json_server::{actor, Actor};
 
 /// A simple calculator actor that demonstrates the #[actor] macro
 #[derive(Debug, Clone)]

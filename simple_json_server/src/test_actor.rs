@@ -1,4 +1,4 @@
-use crate::{Actor, actor};
+use crate::{actor, Actor};
 
 #[derive(Debug, Clone)]
 pub struct TestActor {

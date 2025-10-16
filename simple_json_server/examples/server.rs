@@ -1,4 +1,4 @@
-use simple_json_server::{Actor, actor};
+use simple_json_server::{actor, Actor};
 use std::thread;
 use std::time::Duration;
 

@@ -1,5 +1,5 @@
 use serde_json::json;
-use simple_json_server::{Actor, TlsConfig, actor};
+use simple_json_server::{actor, Actor, TlsConfig};
 use std::fs;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
@@ -870,7 +870,7 @@ async fn test_https_server_end_to_end() {
 async fn test_wss_server_end_to_end() {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::protocol::Message;
-    use tokio_tungstenite::{Connector, connect_async_tls_with_config};
+    use tokio_tungstenite::{connect_async_tls_with_config, Connector};
 
     let port = get_next_port();
     let (cert_path, key_path) = create_test_certificates();
