@@ -27,9 +27,8 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     let mut dispatch_arms = Vec::new();
 
     for item in &input_impl.items {
-        if let ImplItem::Fn(method) = item
-            && is_public_async_method(method)
-        {
+        if let ImplItem::Fn(method) = item {
+            if is_public_async_method(method) {
             let method_name = &method.sig.ident;
             let method_name_str = method_name.to_string();
 
@@ -91,6 +90,7 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
                 });
 
             methods.push(method);
+            }
         }
     }
 
@@ -352,13 +352,13 @@ fn extract_method_doc(method: &ImplItemFn) -> Option<String> {
     let mut doc_lines = Vec::new();
 
     for attr in &method.attrs {
-        if attr.path().is_ident("doc")
-            && let syn::Meta::NameValue(meta) = &attr.meta
-            && let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Str(lit_str),
-                ..
-            }) = &meta.value
-        {
+        if attr.path().is_ident("doc") {
+            if let syn::Meta::NameValue(meta) = &attr.meta {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                }) = &meta.value
+                {
             let doc_text = lit_str.value();
             // Remove leading space that rustdoc adds
             let trimmed = if let Some(stripped) = doc_text.strip_prefix(' ') {
@@ -367,6 +367,8 @@ fn extract_method_doc(method: &ImplItemFn) -> Option<String> {
                 &doc_text
             };
             doc_lines.push(trimmed.to_string());
+                }
+            }
         }
     }
 
