@@ -87,7 +87,7 @@ Private methods and synchronous methods are ignored.
 
 ## Server Support
 
-The library includes built-in HTTP and WebSocket server support. Use the `create_options` method to start a server.
+The library includes built-in HTTP and WebSocket server support. Use the `create` method (or one of its variants including `create_ws`, `create_https`, `create_wss`, or most generally `create_options`) to start a server.
 
 **Note**: `create` and variants on `create` consumes the actor (moves it), preventing accidental use after starting the server. This is a safety feature that ensures the actor is only used within the server context.
 
