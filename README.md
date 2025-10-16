@@ -9,14 +9,16 @@ The goal is to provide a lot of functionality out of the box but with excellent 
 The macro both creates your simple server (an actor) from an impl of your struct and also generates documentation for your actor so its 100% clear how to call it.
 
 The way `simple_json_server` works is:
-1. Create a `struct` and create an `impl` block for it.  The `impl` block should contain all the methods you want to expose on your server.  The methods must be `pub async fn` and take `&self` as the first parameter.  Others are ignored for this purpose.
-2. The `#[actor]` macro will generate the code to make your struct into an actor.  Each method in turn gets turned into a JSON-RPC where:
-  * the RPC name is the name of the method in your `impl`.
-  * the parameters are JSONified parameters of the method.  They are automatically turned into a JSON object with the name of the parameter as the key.  The value is the JSON equivalent of the value of the parameter.
-  * the return value is the JSONified return value of the method.
-  * the macro will generate documentation for your actor so its 100% clear how to call it including the specific JSON payload needed to call the method.
 
-3. The `create` method will start a server for you and begin listening for incoming JSON-RPC calls via HTTP. `create_ws` will do the same but via WebSocket.  Options for `https` and `wss` are also provided.
+1. Create a `struct` and create an `impl` block for it.  The `impl` block should contain all the methods you want to expose on your server.  The methods must be `pub async fn` and take `&self` as the first parameter.  Others are ignored for this purpose.
+
+2. The `#[actor]` macro will generate the code to make your struct into an actor. Each method in turn gets turned into a JSON-RPC where:
+   - The RPC name is the name of the method in your `impl`
+   - The parameters are serialized as JSON parameters of the method. They are automatically turned into a JSON object with the name of the parameter as the key. The value is the JSON equivalent of the value of the parameter
+   - The return value is the JSON-serialized return value of the method
+   - The macro will generate documentation for your actor so it's 100% clear how to call it including the specific JSON payload needed to call the method
+
+3. The `create` method will start a server for you and begin listening for incoming JSON-RPC calls via HTTP. `create_ws` will do the same but via WebSocket. Options for `https` and `wss` are also provided.
 
 
 ## Quick Start
