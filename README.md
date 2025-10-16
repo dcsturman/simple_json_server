@@ -284,7 +284,7 @@ This project uses comprehensive GitHub Actions workflows to ensure code quality:
 
 ### 📈 **Quality Metrics**
 - **Build Status**: [![CI](https://github.com/dcsturman/simple_json_server/workflows/CI/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
-- **Coverage**: [![codecov](https://codecov.io/gh/dcsturman/simple_json_server/branch/main/graph/badge.svg)](https://codecov.io/gh/dcsturman/simple_json_server)
+- **Coverage**: [![codecov](https://codecov.io/gh/dcsturman/simple_json_server/branch/main/graph/badge.svg?token=YOUR_CODECOV_TOKEN)](https://codecov.io/gh/dcsturman/simple_json_server)
 - **Security**: [![Security Audit](https://github.com/dcsturman/simple_json_server/workflows/Dependencies/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
 
 All workflows are designed to maintain high code quality while enabling rapid development and reliable releases.
