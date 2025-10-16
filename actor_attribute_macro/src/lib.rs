@@ -29,50 +29,50 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
     for item in &input_impl.items {
         if let ImplItem::Fn(method) = item {
             if is_public_async_method(method) {
-            let method_name = &method.sig.ident;
-            let method_name_str = method_name.to_string();
+                let method_name = &method.sig.ident;
+                let method_name_str = method_name.to_string();
 
-            // Extract parameters (excluding &self)
-            let params = extract_method_params(method);
+                // Extract parameters (excluding &self)
+                let params = extract_method_params(method);
 
-            // Generate message struct name
-            let message_struct_name = syn::Ident::new(
-                &format!("{}Message", snake_case_to_pascal_case(&method_name_str)),
-                method_name.span(),
-            );
+                // Generate message struct name
+                let message_struct_name = syn::Ident::new(
+                    &format!("{}Message", snake_case_to_pascal_case(&method_name_str)),
+                    method_name.span(),
+                );
 
-            // Generate message struct
-            if !params.is_empty() {
-                let param_fields: Vec<_> = params
-                    .iter()
-                    .map(|(name, ty)| {
-                        quote! { #name: #ty }
-                    })
-                    .collect();
+                // Generate message struct
+                if !params.is_empty() {
+                    let param_fields: Vec<_> = params
+                        .iter()
+                        .map(|(name, ty)| {
+                            quote! { #name: #ty }
+                        })
+                        .collect();
 
-                message_structs.push(quote! {
-                    #[derive(serde::Deserialize)]
-                    struct #message_struct_name {
-                        #(#param_fields),*
-                    }
-                });
-            } else {
-                // For methods with no parameters, create an empty struct
-                message_structs.push(quote! {
-                    #[derive(serde::Deserialize)]
-                    struct #message_struct_name {}
-                });
-            }
+                    message_structs.push(quote! {
+                        #[derive(serde::Deserialize)]
+                        struct #message_struct_name {
+                            #(#param_fields),*
+                        }
+                    });
+                } else {
+                    // For methods with no parameters, create an empty struct
+                    message_structs.push(quote! {
+                        #[derive(serde::Deserialize)]
+                        struct #message_struct_name {}
+                    });
+                }
 
-            // Generate dispatch arm
-            let param_names: Vec<_> = params.iter().map(|(name, _)| name).collect();
-            let method_call = if params.is_empty() {
-                quote! { self.#method_name().await }
-            } else {
-                quote! { self.#method_name(#(msg_params.#param_names),*).await }
-            };
+                // Generate dispatch arm
+                let param_names: Vec<_> = params.iter().map(|(name, _)| name).collect();
+                let method_call = if params.is_empty() {
+                    quote! { self.#method_name().await }
+                } else {
+                    quote! { self.#method_name(#(msg_params.#param_names),*).await }
+                };
 
-            dispatch_arms.push(quote! {
+                dispatch_arms.push(quote! {
                     #method_name_str => {
                         match serde_json::from_value::<#message_struct_name>(params) {
                             Ok(msg_params) => {
@@ -89,7 +89,7 @@ pub fn actor(_args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 });
 
-            methods.push(method);
+                methods.push(method);
             }
         }
     }
@@ -359,14 +359,14 @@ fn extract_method_doc(method: &ImplItemFn) -> Option<String> {
                     ..
                 }) = &meta.value
                 {
-            let doc_text = lit_str.value();
-            // Remove leading space that rustdoc adds
-            let trimmed = if let Some(stripped) = doc_text.strip_prefix(' ') {
-                stripped
-            } else {
-                &doc_text
-            };
-            doc_lines.push(trimmed.to_string());
+                    let doc_text = lit_str.value();
+                    // Remove leading space that rustdoc adds
+                    let trimmed = if let Some(stripped) = doc_text.strip_prefix(' ') {
+                        stripped
+                    } else {
+                        &doc_text
+                    };
+                    doc_lines.push(trimmed.to_string());
                 }
             }
         }
