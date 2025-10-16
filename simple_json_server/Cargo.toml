@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 license-file = "../LICENSE.txt"
 description = "A simple way to build a JSON-based server with automatic JSON serialization/deserialization, error handling, async support, type safety, and comprehensive RustDoc generation."
+docs.rs = "https://docs.rs/simple_json_server"
 repository = "https://github.com/dcsturman/simple_json_server"
 readme = "../README.md"
 keywords = ["server", "json", "rpc", "actor", "macro", "websockets"]

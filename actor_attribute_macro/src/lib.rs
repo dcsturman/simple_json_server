@@ -3,6 +3,8 @@ use quote::quote;
 use syn::{FnArg, ImplItem, ImplItemFn, ItemImpl, Pat, Type, Visibility, parse_macro_input};
 
 /// The `#[actor]` attribute macro that implements the Actor trait for a struct.
+/// This crate doesn't make a lot of sense by itself - instead look at
+/// the `simple_json_server` crate which uses this macro.
 ///
 /// This macro should be placed on an `impl` block for a struct. It will:
 /// 1. Analyze all public async methods in the impl block
@@ -332,8 +334,12 @@ fn generate_actor_documentation(methods: &[&ImplItemFn], struct_type: &syn::Type
 
         // Add note about Content-Type header
         doc.push_str("**Note about Content-Type header:**\n");
-        doc.push_str("The `Content-Type: application/json` header is recommended for proper HTTP semantics ");
-        doc.push_str("and browser CORS handling, though the server will accept any content type as long as ");
+        doc.push_str(
+            "The `Content-Type: application/json` header is recommended for proper HTTP semantics ",
+        );
+        doc.push_str(
+            "and browser CORS handling, though the server will accept any content type as long as ",
+        );
         doc.push_str("the body contains valid JSON. Without this header, browsers may send ");
         doc.push_str("`application/x-www-form-urlencoded` by default.\n\n");
     }

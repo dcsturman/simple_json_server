@@ -248,3 +248,44 @@ The generated documentation includes:
 
 This makes it easy to understand the JSON API without looking at the source code!
 
+## CI/CD and Quality Assurance
+
+This project uses comprehensive GitHub Actions workflows to ensure code quality:
+
+### 🔄 **Continuous Integration**
+- **Multi-Rust Version Testing**: Tests on stable, beta, and nightly Rust
+- **Code Formatting**: Enforces consistent formatting with `rustfmt`
+- **Linting**: Uses `clippy` with strict warnings
+- **Comprehensive Testing**: Runs all unit and integration tests
+- **Example Validation**: Ensures all examples compile and run
+
+### 📊 **Code Coverage**
+- **Coverage Reports**: Generated using `cargo llvm-cov`
+- **Codecov Integration**: Automatic coverage reporting and tracking
+- **Coverage Artifacts**: HTML reports available for download
+- **Target**: Maintains 80%+ coverage on testable code
+
+### 🔒 **Security & Dependencies**
+- **Security Audits**: Regular `cargo audit` checks for vulnerabilities
+- **License Compliance**: Automated license checking with `cargo-deny`
+- **Dependency Updates**: Weekly automated dependency update PRs
+- **MSRV Testing**: Ensures compatibility with minimum supported Rust version
+
+### 📚 **Documentation & Releases**
+- **Documentation Building**: Validates all docs build correctly
+- **Release Automation**: Automatic binary builds for multiple platforms
+- **Crate Publishing**: Automated publishing to crates.io on tags
+- **Cross-Platform**: Builds for Linux, Windows, and macOS (x86_64 + ARM64)
+
+### 🧪 **Integration Testing**
+- **JavaScript Client Testing**: Validates the generated JSON-RPC interface
+- **Server Lifecycle Testing**: Tests server startup, API calls, and shutdown
+- **Cross-Language Validation**: Ensures Rust-JavaScript interoperability
+
+### 📈 **Quality Metrics**
+- **Build Status**: [![CI](https://github.com/dcsturman/simple_json_server/workflows/CI/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
+- **Coverage**: [![codecov](https://codecov.io/gh/dcsturman/simple_json_server/branch/main/graph/badge.svg)](https://codecov.io/gh/dcsturman/simple_json_server)
+- **Security**: [![Security Audit](https://github.com/dcsturman/simple_json_server/workflows/Dependencies/badge.svg)](https://github.com/dcsturman/simple_json_server/actions)
+
+All workflows are designed to maintain high code quality while enabling rapid development and reliable releases.
+
