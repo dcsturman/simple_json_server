@@ -1,6 +1,6 @@
 [package]
 name = "simple_json_server"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2021"
 license-file = "../LICENSE.txt"
 description = "A simple way to build a JSON-based server with automatic JSON serialization/deserialization, error handling, async support, type safety, and comprehensive RustDoc generation."
@@ -11,7 +11,7 @@ keywords = ["server", "json", "rpc", "macro", "websockets"]
 categories = ["api-bindings", "concurrency"]
 
 [dependencies]
-actor_attribute_macro = { path = "../actor_attribute_macro", version = "1.0.0" }
+actor_attribute_macro = { path = "../actor_attribute_macro", version = "1.0.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.40", features = ["rt", "rt-multi-thread", "net", "io-util", "fs", "macros"] }

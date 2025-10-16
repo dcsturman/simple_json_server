@@ -1,6 +1,6 @@
 [package]
 name = "actor_attribute_macro"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2024"
 license = "MIT"
 description = "A procedural macro for generating JSON-based actor implementations for the simple_json_server library."

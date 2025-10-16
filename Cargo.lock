@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actor_attribute_macro"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1467,7 +1467,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "simple_json_server"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "actor_attribute_macro",
  "env_logger",
